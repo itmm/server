@@ -15,7 +15,7 @@ build/%.o: %.cpp
 	@mkdir -p build deps
 	@clang++ $(CXXFLAGS) -c $(notdir $(@:.o=.cpp)) -o $@ -MMD -MF deps/$(notdir $(@:.o=.dep))
 
-CPPs := server.cpp
+CPPs := server.cpp socket.cpp
 OBJs := $(addprefix build/,$(CPPs:.cpp=.o))
 
 $(APP): $(OBJs)
