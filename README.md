@@ -16,18 +16,18 @@ class Error: public std::exception {
 		}
 };
 
-void err_with_stream(std::ostringstream &out) {
+inline void err_with_stream(std::ostringstream &out) {
 	throw Error { out.str() };
 }
 
-template<typename ARG, typename... ARGS> void err_with_stream(
+template<typename ARG, typename... ARGS> inline void err_with_stream(
 	std::ostringstream &out, ARG arg, ARGS... rest
 ) {
 	out << arg;
 	err_with_stream(out, rest...);
 }
 
-template<typename... ARGS> void err(ARGS... args) {
+template<typename... ARGS> inline void err(ARGS... args) {
 	std::ostringstream out;
 	err_with_stream(out, args...);
 }
@@ -37,18 +37,22 @@ template<typename... ARGS> void err(ARGS... args) {
 ```c++
 #pragma once
 
+#include <string>
 #include <sys/select.h>
 
 class Socket {
 		int fd_;
-		bool can_read_ { true };
-		bool can_write_ { false };
+		std::string header_;
+		std::string reply_ { };
+		int reply_pos_ { 0 };
 	public:
 		Socket(int fd): fd_ { fd } { }
 		int fd() const { return fd_; }
 		void add_to_select(
 			fd_set *read, fd_set *write, fd_set *except, int &max
 		);
+		void parse_request();
+		void send_reply();
 		
 };
 ```
@@ -58,13 +62,62 @@ class Socket {
 ```c++
 #include "socket.h"
 
+#include "err.h"
+
+#include <iostream>
+#include <sys/socket.h>
+
 void Socket::add_to_select(
 	fd_set *read, fd_set *write, fd_set *except, int &max
 ) {
-	if (read && can_read_) { FD_SET(fd_, read); }
-	if (write && can_write_) { FD_SET(fd_, write); }
+std::cout << "pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
+	if (read && reply_pos_ >= reply_.size()) { FD_SET(fd_, read); std::cout << fd_ << " can read\n"; }
+	if (write && reply_pos_ < reply_.size()) { FD_SET(fd_, write); std::cout << fd_ << " can write\n"; }
 	if (except) { FD_SET(fd_, except); }
 	if (fd_ > max) { max = fd_; }
+}
+
+void Socket::parse_request() {
+	char buffer[2048];
+	auto got { recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT) };
+	if (got < 0) { err("error while reading from socket ", fd_); }
+	if (got == 0) { };
+	std::cout << "read " << got << " chars\n";
+	for (auto cur { buffer }, end { buffer + got }; cur != end; ++cur) {
+		if (*cur == '\n') {
+			std::cout << "got header \"" << header_.substr(0, header_.size() - 1) << "\"\n";
+			if (header_ == "\r") {
+				std::cout << "end of header detected\n";
+				std::string content =
+					"<!DOCTYPE html>\r\n"
+					"<html>\r\n"
+					"<head>\r\n"
+					"\t<title>Server Fehler</title>\r\n"
+					"</head>\r\n"
+					"<body>\r\n"
+					"\t<h1>Server Fehler</h1>\r\n"
+					"</body></html>\r\n";
+
+				reply_ =
+					"HTTP/1.1 500 Internal Error\r\n"
+					"Content-Type: text/html\r\n"
+					"Content-Length: " + std::to_string(content.size()) +
+					"\r\n" + content;
+				reply_pos_ = 0;
+std::cout << "pre pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
+			}
+			header_.clear();
+		} else { header_ += *cur; }
+	}
+}
+
+void Socket::send_reply() {
+	auto offset { reply_pos_ };
+	auto len { reply_.size() - offset };
+	std::cout << "offset == " << offset << ", len == " << len << "\n";
+	auto got { send(fd_, reply_.c_str() + offset, len, MSG_DONTWAIT) };
+	if (got < 0) { err("error while writing to socket ", fd_); }
+	reply_pos_ += got;
 }
 ```
 
@@ -96,7 +149,7 @@ int main(int argc, const char *argv[]) {
 	} catch (const Error &e) {
 		std::cerr << "server failed: " << e.what() << "\n";
 	}
-	for (auto [fd, sock]: open_sockets) {
+	for (auto &[fd, sock]: open_sockets) {
 		close(fd);
 		std::cout << "close socket " << fd << "\n";
 	}
@@ -126,7 +179,7 @@ static inline void perform_select() {
 	FD_SET(server, &read_set);
 	FD_SET(server, &except_set);
 	int max { server };
-	for (auto [fd, sock]: open_sockets) {
+	for (auto &[fd, sock]: open_sockets) {
 		sock.add_to_select(&read_set, &write_set, &except_set, max);
 	}
 
@@ -143,14 +196,15 @@ static inline void perform_select() {
 		accept_connection();
 	}
 	
-	for (auto [fd, sock]: open_sockets) {
+	for (auto &[fd, sock]: open_sockets) {
 		if (FD_ISSET(fd, &except_set)) {
 			open_sockets.erase(open_sockets.find(fd));
 			close(fd);
 			err("error on socket ", fd, "\n");
 		} else if (FD_ISSET(fd, &read_set)) {
-			char buffer[100];
-			read(fd, buffer, sizeof(buffer));
+			sock.parse_request();
+		} else if (FD_ISSET(fd, &write_set)) {
+			sock.send_reply();
 		}
 	}
 }

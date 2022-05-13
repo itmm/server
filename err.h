@@ -14,18 +14,18 @@ class Error: public std::exception {
 		}
 };
 
-void err_with_stream(std::ostringstream &out) {
+inline void err_with_stream(std::ostringstream &out) {
 	throw Error { out.str() };
 }
 
-template<typename ARG, typename... ARGS> void err_with_stream(
+template<typename ARG, typename... ARGS> inline void err_with_stream(
 	std::ostringstream &out, ARG arg, ARGS... rest
 ) {
 	out << arg;
 	err_with_stream(out, rest...);
 }
 
-template<typename... ARGS> void err(ARGS... args) {
+template<typename... ARGS> inline void err(ARGS... args) {
 	std::ostringstream out;
 	err_with_stream(out, args...);
 }
