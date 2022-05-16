@@ -17,36 +17,40 @@ std::cout << "pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
 }
 
 void Socket::parse_request() {
-	char buffer[2048];
-	auto got { recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT) };
-	if (got < 0) { err("error while reading from socket ", fd_); }
-	std::cout << "read " << got << " chars\n";
-	for (auto cur { buffer }, end { buffer + got }; cur != end; ++cur) {
-		if (*cur == '\n') {
-			std::cout << "got header \"" << header_.substr(0, header_.size() - 1) << "\"\n";
-			if (header_ == "\r") {
-				std::cout << "end of header detected\n";
-				std::string content =
-					"<!DOCTYPE html>\r\n"
-					"<html>\r\n"
-					"<head>\r\n"
-					"\t<title>Server Fehler</title>\r\n"
-					"</head>\r\n"
-					"<body>\r\n"
-					"\t<h1>Server Fehler</h1>\r\n"
-					"</body></html>\r\n";
+	char buffer[100];
+	ssize_t got;
+	do {
+		got = recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
+		if (got < 0) { err("error while reading from socket ", fd_); }
+		if (got == 0) { };
+		std::cout << "read " << got << " chars\n";
+		for (auto cur { buffer }, end { buffer + got }; cur != end; ++cur) {
+			if (*cur == '\n') {
+				std::cout << "got header \"" << header_.substr(0, header_.size() - 1) << "\"\n";
+				if (header_ == "\r") {
+					std::cout << "end of header detected\n";
+					std::string content =
+						"<!DOCTYPE html>\r\n"
+						"<html>\r\n"
+						"<head>\r\n"
+						"\t<title>Server Fehler</title>\r\n"
+						"</head>\r\n"
+						"<body>\r\n"
+						"\t<h1>Server Fehler</h1>\r\n"
+						"</body></html>\r\n";
 
-				reply_ =
-					"HTTP/1.1 500 Internal Error\r\n"
-					"Content-Type: text/html\r\n"
-					"Content-Length: " + std::to_string(content.size()) +
-					"\r\n" + content;
-				reply_pos_ = 0;
-std::cout << "pre pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
-			}
-			header_.clear();
-		} else { header_ += *cur; }
-	}
+					reply_ =
+						"HTTP/1.1 500 Internal Error\r\n"
+						"Content-Type: text/html\r\n"
+						"Content-Length: " + std::to_string(content.size()) +
+						"\r\n\r\n" + content;
+					reply_pos_ = 0;
+	std::cout << "pre pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
+				}
+				header_.clear();
+			} else { header_ += *cur; }
+		}
+	} while (got == sizeof(buffer));
 }
 
 void Socket::send_reply() {
