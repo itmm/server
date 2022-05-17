@@ -1,4 +1,4 @@
-#line 63 "README.md"
+#line 110 "1_simple-server.md"
 #include "socket.h"
 
 #include "err.h"
@@ -21,7 +21,7 @@ void Socket::parse_request() {
 	ssize_t got;
 	do {
 		got = recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
-		if (got < 0) { err("error while reading from socket ", fd_); }
+		if (got < 0) { ERR("error while reading from socket ", fd_); }
 		if (got == 0) { };
 		std::cout << "read " << got << " chars\n";
 		for (auto cur { buffer }, end { buffer + got }; cur != end; ++cur) {
@@ -58,6 +58,6 @@ void Socket::send_reply() {
 	auto len { reply_.size() - offset };
 	std::cout << "offset == " << offset << ", len == " << len << "\n";
 	auto got { send(fd_, reply_.c_str() + offset, len, MSG_DONTWAIT) };
-	if (got < 0) { err("error while writing to socket ", fd_); }
+	if (got < 0) { ERR("error while writing to socket ", fd_); }
 	reply_pos_ += got;
 }
