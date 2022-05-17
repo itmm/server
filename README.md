@@ -20,7 +20,7 @@ ein großer Teil der Interprozess-Kommunikation weg und das Projekt wird
 einfacher.
 
 Geschrieben ist es in C++ mit Hilfe meines Dokumentations-Werkzeugs
-[https://github.com/itmm/md-patcher](MD-Patcher).
+[MD-Patcher](https://github.com/itmm/md-patcher).
 
-Im ersten Schritt wird in [./1_simple-server.md](1_simple-server.md) ein
+Im ersten Schritt wird in [1_simple-server.md](./1_simple-server.md) ein
 rudimentärer Server vorgestellt, der Schritt für Schritt erweitert wird.
