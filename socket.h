@@ -1,4 +1,4 @@
-#line 85 "1_simple-server.md"
+#line 86 "1_simple-server.md"
 #pragma once
 
 #include <string>
@@ -6,9 +6,11 @@
 
 class Socket {
 		int fd_;
+#line 228
 		std::string header_;
 		std::string reply_ { };
 		int reply_pos_ { 0 };
+#line 93
 	public:
 		Socket(int fd): fd_ { fd } { }
 		int fd() const { return fd_; }
@@ -17,5 +19,4 @@ class Socket {
 		);
 		void parse_request();
 		void send_reply();
-		
 };

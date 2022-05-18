@@ -1,4 +1,4 @@
-#line 177 "1_simple-server.md"
+#line 109 "1_simple-server.md"
 #include "err.h"
 #include "socket.h"
 
@@ -15,7 +15,7 @@ int server { -1 };
 
 std::map<int, Socket> open_sockets;
 
-#line 214
+#line 146
 static inline void accept_connection() {
 	sockaddr_in addr;
 	auto casted_addr { reinterpret_cast<sockaddr *>(&addr) };
@@ -64,9 +64,9 @@ static inline void perform_select() {
 	}
 }
 
-#line 193
+#line 125
 static inline void run_server() {
-#line 263
+#line 195
 	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (server < 0) { ERR("can't create server socket"); }
 
@@ -89,7 +89,7 @@ static inline void run_server() {
 		std::cerr << e.what() << "\n";
 		if (server < 0) { throw e; }
 	} }
-#line 194
+#line 126
 }
 
 int main(int argc, const char *argv[]) {
