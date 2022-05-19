@@ -6,7 +6,7 @@
 
 class Socket {
 		int fd_;
-#line 228
+#line 262
 		std::string header_;
 		std::string reply_ { };
 		int reply_pos_ { 0 };

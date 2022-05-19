@@ -101,6 +101,23 @@ class Socket {
 };
 ```
 
+`socket.cpp`
+
+```c++
+#include "socket.h"
+
+void Socket::add_to_select(
+	fd_set *read, fd_set *write, fd_set *except, int &max
+) {
+}
+
+void Socket::parse_request() {
+}
+
+void Socket::send_reply() {
+}
+```
+
 Bevor wir zur Implementierung der Klasse kommen, sehen wir uns ihre
 Verwendung in `server.cpp` an. Der Server hat eine Liste von Verbindungen.
 Beim beenden werden alle Sockets geschlossen.
@@ -139,10 +156,49 @@ int main(int argc, const char *argv[]) {
 }
 ```
 
+`server.cpp`
+
 ```c++
 // ...
 std::map<int, Socket> open_sockets;
 
+static inline void accept_connection() {
+}
+
+static inline void perform_select() {
+}
+
+static inline void run_server() {
+	server = socket(AF_INET, SOCK_STREAM, 0);
+	if (server < 0) { ERR("can't create server socket"); }
+
+	sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(port);
+	auto casted_addr { reinterpret_cast<sockaddr *>(&addr) };
+
+	if (bind(server, casted_addr, sizeof(addr)) < 0) {
+		ERR("can't bind server to port ", port);
+	}
+
+	if (listen(server, 10) < 0) { ERR("can't listen to server"); }
+
+	std::cout << "server ready on port " << port << "\n";
+	for (;;) { try {
+		perform_select();
+	} catch (const Error &e) {
+		std::cerr << e.what() << "\n";
+		if (server < 0) { throw e; }
+	} }
+}
+// ...
+```
+
+`server.cpp`
+
+```c++
+// ...
 static inline void accept_connection() {
 	sockaddr_in addr;
 	auto casted_addr { reinterpret_cast<sockaddr *>(&addr) };
@@ -152,7 +208,11 @@ static inline void accept_connection() {
 	open_sockets.insert({ connection, Socket { connection } });
 	std::cout << "got connection " << connection << "\n";
 }
+// ...
+```
 
+```c++
+// ...
 static inline void perform_select() {
 	fd_set read_set, write_set, except_set;
 	FD_ZERO(&read_set);
@@ -190,34 +250,8 @@ static inline void perform_select() {
 		}
 	}
 }
-
-static inline void run_server() {
-	server = socket(AF_INET, SOCK_STREAM, 0);
-	if (server < 0) { ERR("can't create server socket"); }
-
-	sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(port);
-	auto casted_addr { reinterpret_cast<sockaddr *>(&addr) };
-
-	if (bind(server, casted_addr, sizeof(addr)) < 0) {
-		ERR("can't bind server to port ", port);
-	}
-
-	if (listen(server, 10) < 0) { ERR("can't listen to server"); }
-
-	std::cout << "server ready on port " << port << "\n";
-	for (;;) { try {
-		perform_select();
-	} catch (const Error &e) {
-		std::cerr << e.what() << "\n";
-		if (server < 0) { throw e; }
-	} }
-}
 // ...
 ```
-
 
 `socket.h`
 
@@ -235,23 +269,26 @@ class Socket {
 `socket.cpp`
 
 ```c++
+// ...
 #include "socket.h"
-
-#include "err.h"
-
 #include <iostream>
-#include <sys/socket.h>
-
+// ...
 void Socket::add_to_select(
 	fd_set *read, fd_set *write, fd_set *except, int &max
 ) {
-std::cout << "pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
 	if (read && reply_pos_ >= reply_.size()) { FD_SET(fd_, read); std::cout << fd_ << " can read\n"; }
 	if (write && reply_pos_ < reply_.size()) { FD_SET(fd_, write); std::cout << fd_ << " can write\n"; }
 	if (except) { FD_SET(fd_, except); }
 	if (fd_ > max) { max = fd_; }
 }
+// ...
+```
 
+```c++
+#include "socket.h"
+#include "err.h"
+#include <sys/socket.h>
+// ...
 void Socket::parse_request() {
 	char buffer[100];
 	ssize_t got;
@@ -259,10 +296,8 @@ void Socket::parse_request() {
 		got = recv(fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
 		if (got < 0) { ERR("error while reading from socket ", fd_); }
 		if (got == 0) { };
-		std::cout << "read " << got << " chars\n";
 		for (auto cur { buffer }, end { buffer + got }; cur != end; ++cur) {
 			if (*cur == '\n') {
-				std::cout << "got header \"" << header_.substr(0, header_.size() - 1) << "\"\n";
 				if (header_ == "\r") {
 					std::cout << "end of header detected\n";
 					std::string content =
@@ -281,18 +316,20 @@ void Socket::parse_request() {
 						"Content-Length: " + std::to_string(content.size()) +
 						"\r\n\r\n" + content;
 					reply_pos_ = 0;
-	std::cout << "pre pos == " << reply_pos_ << ", size == " << reply_.size() << "\n";
 				}
 				header_.clear();
 			} else { header_ += *cur; }
 		}
 	} while (got == sizeof(buffer));
 }
+// ...
+```
 
+```c++
+// ...
 void Socket::send_reply() {
 	auto offset { reply_pos_ };
 	auto len { reply_.size() - offset };
-	std::cout << "offset == " << offset << ", len == " << len << "\n";
 	auto got { send(fd_, reply_.c_str() + offset, len, MSG_DONTWAIT) };
 	if (got < 0) { ERR("error while writing to socket ", fd_); }
 	reply_pos_ += got;
